@@ -86,7 +86,8 @@ lib/nms/cpu_nms.c
 output/*
 models/*
 log/*
-data/*
+manopth/*
+smplpytorch/*
 external/
 
 draws/
