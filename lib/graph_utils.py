@@ -33,21 +33,33 @@ def sparse_mx_to_torch_sparse_tensor(sparse_mx):
     shape = torch.Size(sparse_mx.shape)
     return torch.sparse.FloatTensor(indices, values, shape)
 
+def build_adj(num_person, joint_num, skeleton, flip_pairs):
+    adj_matrix = np.zeros((num_person * joint_num, num_person * joint_num))
+    for person_id in range(num_person):
+        for line in skeleton:
+            adj_matrix[person_id * joint_num + line[0], person_id * joint_num + line[1]] = 1
+            adj_matrix[person_id * joint_num + line[1], person_id * joint_num + line[0]] = 1
+        for lr in flip_pairs:
+            adj_matrix[person_id * joint_num + lr[0], person_id * joint_num + lr[1]] = 1
+            adj_matrix[person_id * joint_num + lr[1], person_id * joint_num + lr[0]] = 1
 
-def build_graph(hand_tri, num_vertex):
+    return adj_matrix + np.eye(num_person * joint_num)
+
+def build_graph(num_person, hand_tri, num_vertex):
     """
     :param hand_tri: T x 3
     :return: adj: sparse matrix, V x V (torch.sparse.FloatTensor)
     """
     num_tri = hand_tri.shape[0]
-    edges = np.empty((num_tri * 3, 2))
-    for i_tri in range(num_tri):
-        edges[i_tri * 3] = hand_tri[i_tri, :2]
-        edges[i_tri * 3 + 1] = hand_tri[i_tri, 1:]
-        edges[i_tri * 3 + 2] = hand_tri[i_tri, [0, 2]]
+    edges = np.empty((num_tri * 3 * num_person, 2))
+    for person_id in range(num_person):
+        for i_tri in range(num_tri):
+            edges[person_id * num_tri * 3 + i_tri * 3] = hand_tri[i_tri, :2] + person_id * num_vertex
+            edges[person_id * num_tri * 3 + i_tri * 3 + 1] = hand_tri[i_tri, 1:] + person_id * num_vertex
+            edges[person_id * num_tri * 3 + i_tri * 3 + 2] = hand_tri[i_tri, [0, 2]] + person_id * num_vertex
 
     adj = sp.coo_matrix((np.ones(edges.shape[0]), (edges[:, 0], edges[:, 1])),
-                        shape=(num_vertex, num_vertex), dtype=np.float32)
+                        shape=(num_vertex * num_person, num_vertex * num_person), dtype=np.float32)
 
     adj = adj - (adj > 1) * 1.0
 
@@ -59,24 +71,49 @@ def build_graph(hand_tri, num_vertex):
 
     return adj
 
+# def build_graph(hand_tri, num_vertex):
+#     """
+#     :param hand_tri: T x 3
+#     :return: adj: sparse matrix, V x V (torch.sparse.FloatTensor)
+#     """
+#     num_tri = hand_tri.shape[0]
+#     edges = np.empty((num_tri * 3, 2))
+#     for i_tri in range(num_tri):
+#         edges[i_tri * 3] = hand_tri[i_tri, :2]
+#         edges[i_tri * 3 + 1] = hand_tri[i_tri, 1:]
+#         edges[i_tri * 3 + 2] = hand_tri[i_tri, [0, 2]]
+#
+#     adj = sp.coo_matrix((np.ones(edges.shape[0]), (edges[:, 0], edges[:, 1])),
+#                         shape=(num_vertex, num_vertex), dtype=np.float32)
+#
+#     adj = adj - (adj > 1) * 1.0
+#
+#     # build symmetric adjacency matrix
+#     adj = adj + adj.T.multiply(adj.T > adj) - adj.multiply(adj.T > adj)
+#
+#     # adj = normalize_sparse_mx(adj + sp.eye(adj.shape[0]))
+#     # adj = sparse_mx_to_torch_sparse_tensor(adj)
+#
+#     return adj
+#
+#
+# def build_adj(joint_num, skeleton, flip_pairs):
+#     adj_matrix = np.zeros((joint_num, joint_num))
+#     for line in skeleton:
+#         adj_matrix[line] = 1
+#         adj_matrix[line[1], line[0]] = 1
+#     for lr in flip_pairs:
+#         adj_matrix[lr] = 1
+#         adj_matrix[lr[1], lr[0]] = 1
+#
+#     return adj_matrix + np.eye(joint_num)
 
-def build_adj(joint_num, skeleton, flip_pairs):
-    adj_matrix = np.zeros((joint_num, joint_num))
-    for line in skeleton:
-        adj_matrix[line] = 1
-        adj_matrix[line[1], line[0]] = 1
-    for lr in flip_pairs:
-        adj_matrix[lr] = 1
-        adj_matrix[lr[1], lr[0]] = 1
-
-    return adj_matrix + np.eye(joint_num)
-
-
-def build_coarse_graphs(mesh_face, joint_num, skeleton, flip_pairs, levels=9):
-    joint_adj = build_adj(joint_num, skeleton, flip_pairs)
+def build_coarse_graphs(num_person, mesh_face, joint_num, skeleton, flip_pairs, levels=9):
+    joint_adj = build_adj(num_person, joint_num, skeleton, flip_pairs)
     # Build graph
-    mesh_adj = build_graph(mesh_face, mesh_face.max() + 1)
+    mesh_adj = build_graph(num_person, mesh_face, mesh_face.max() + 1)
     graph_Adj, graph_L, graph_perm = coarsen(mesh_adj, levels=levels)
+
     input_Adj = sp.csr_matrix(joint_adj)
     input_Adj.eliminate_zeros()
     input_L = laplacian(input_Adj, normalized=True)
@@ -93,6 +130,28 @@ def build_coarse_graphs(mesh_face, joint_num, skeleton, flip_pairs, levels=9):
     #     renewed_lmax.append(lmax_L(graph_L[i]))
 
     return graph_Adj, graph_L, graph_perm, perm_index_reverse(graph_perm[0])
+
+# def build_coarse_graphs(mesh_face, joint_num, skeleton, flip_pairs, levels=9):
+#     joint_adj = build_adj(joint_num, skeleton, flip_pairs)
+#     # Build graph
+#     mesh_adj = build_graph(mesh_face, mesh_face.max() + 1)
+#     graph_Adj, graph_L, graph_perm = coarsen(mesh_adj, levels=levels)
+#     input_Adj = sp.csr_matrix(joint_adj)
+#     input_Adj.eliminate_zeros()
+#     input_L = laplacian(input_Adj, normalized=True)
+#
+#     graph_L[-1] = input_L
+#     graph_Adj[-1] = input_Adj
+#
+#     # Compute max eigenvalue of graph Laplacians, rescale Laplacian
+#     graph_lmax = []
+#     renewed_lmax = []
+#     for i in range(levels):
+#         graph_lmax.append(lmax_L(graph_L[i]))
+#         graph_L[i] = rescale_L(graph_L[i], graph_lmax[i])
+#     #     renewed_lmax.append(lmax_L(graph_L[i]))
+#
+#     return graph_Adj, graph_L, graph_perm, perm_index_reverse(graph_perm[0])
 
 
 def sparse_python_to_torch(sp_python):

@@ -23,9 +23,12 @@ from vis import vis_3d_pose, vis_2d_pose
 
 
 class Human36M(torch.utils.data.Dataset):
-    def __init__(self, mode, args):
+    def __init__(self, mode, args=None):
         dataset_name = 'Human36M'
-        self.debug = args.debug
+        if args:
+            self.debug = args.debug
+        else:
+            self.debug = True
         self.data_split = mode
         self.img_dir = osp.join(cfg.data_dir, dataset_name, 'images')
         self.annot_path = osp.join(cfg.data_dir, dataset_name, 'annotations')
@@ -35,6 +38,7 @@ class Human36M(torch.utils.data.Dataset):
                             'Sitting', 'SittingDown', 'Smoking', 'Photo', 'Waiting', 'Walking', 'WalkDog',
                             'WalkTogether']
         self.fitting_thr = 25  # milimeter
+        self.num_person = cfg.num_person
 
         # SMPL joint set
         self.mesh_model = SMPL()
@@ -73,7 +77,7 @@ class Human36M(torch.utils.data.Dataset):
             print("Check lengths of annotation and detection output: ", len(self.datalist), len(self.datalist_pose2d_det))
 
         self.graph_Adj, self.graph_L, self.graph_perm, self.graph_perm_reverse = \
-            build_coarse_graphs(self.mesh_model.face, self.joint_num, self.skeleton, self.flip_pairs, levels=9)
+            build_coarse_graphs(self.num_person, self.mesh_model.face, self.joint_num, self.skeleton, self.flip_pairs, levels=9)
 
     def load_pose2d_det(self, data_path, skip_list):
         pose_list = []
@@ -353,7 +357,9 @@ class Human36M(torch.utils.data.Dataset):
         if error > self.fitting_thr:
             mesh_valid[:] = 0
 
-
+        # change the input into multi-person
+        joint_img = np.concatenate([joint_img, np.ones(((self.num_person-1) * self.joint_num,2), dtype=np.float32)], axis=0)
+        joint_cam = np.concatenate([joint_cam, np.ones(((self.num_person-1) * self.joint_num,3), dtype=np.float32)], axis=0)
         inputs = {'pose2d': joint_img}
         targets = {'mesh': mesh_cam / 1000, 'lift_pose3d': joint_cam, 'reg_pose3d': joint_cam_h36m}
         meta = {'mesh_valid': mesh_valid, 'lift_pose3d_valid': lift_joint_valid, 'reg_pose3d_valid': reg_joint_valid}
@@ -539,3 +545,26 @@ class Human36M(torch.utils.data.Dataset):
             err = np.mean(np.array(mesh_error_action[i]))
             eval_summary += (self.action_name[i] + ': %.2f ' % err)
         print(eval_summary)
+
+if __name__ == '__main__':
+    import argparse
+    from core.config import cfg, update_config
+
+    import torchvision.transforms as transforms
+    import torch
+
+    update_config('asset/yaml/pose3d2mesh_human36J_train_human36.yml')
+
+    train_dataset = Human36M('train')
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset,
+        batch_size=16,
+        shuffle=False,
+        num_workers=8,
+        pin_memory=False
+    )
+    for i, b in enumerate(train_loader):
+        if i == 1:
+            break
+        else:
+            print(b[0]['pose2d'].shape, b[1]['lift_pose3d'].shape)

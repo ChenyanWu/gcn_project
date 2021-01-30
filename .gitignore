@@ -89,6 +89,7 @@ log/*
 manopth/*
 smplpytorch/*
 asset/*
+experiment/*
 external/
 
 draws/
