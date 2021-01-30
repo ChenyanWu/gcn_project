@@ -88,7 +88,6 @@ models/*
 log/*
 manopth/*
 smplpytorch/*
-asset/*
 experiment/*
 external/
 
