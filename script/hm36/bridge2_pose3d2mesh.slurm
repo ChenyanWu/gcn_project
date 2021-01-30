@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -N 1
 #SBATCH -p GPU
-#SBATCH -t 36:00:00
+#SBATCH -t 37:00:00
 #SBATCH --gpus=8
 #SBATCH --output=/ocean/projects/iri180005p/chenyan/coding/gcn_project/script/hm36/log/experiment_bridge2.out
 
