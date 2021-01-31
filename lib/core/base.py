@@ -192,8 +192,9 @@ class Tester:
         with torch.no_grad():
             for i, (inputs, targets, meta) in enumerate(self.val_loader):
                 input_pose, gt_pose3d, gt_mesh = inputs['pose2d'].cuda(), targets['reg_pose3d'].cuda(), targets['mesh'].cuda()
+                input_pose3d = inputs['lift_pose3d'].cuda()
 
-                pred_mesh, pred_pose_from2d = self.model(input_pose, gt_pose3d)
+                pred_mesh, pred_pose_from2d = self.model(input_pose, input_pose3d)
                 pred_mesh = pred_mesh[:, self.val_dataset.graph_perm_reverse[:self.val_dataset.mesh_model.face.max() + 1], :]
                 pred_mesh, gt_mesh = pred_mesh * 1000, gt_mesh * 1000
 
