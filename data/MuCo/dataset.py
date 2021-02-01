@@ -10,7 +10,7 @@ import copy
 from pycocotools.coco import COCO
 
 from Human36M.noise_stats import error_distribution
-from core.config import cfg 
+from core.config import cfg
 from funcs_utils import stop
 from noise_utils import synthesize_pose
 from smpl import SMPL
@@ -28,6 +28,8 @@ class MuCo(torch.utils.data.Dataset):
         self.annot_path = osp.join(cfg.data_dir, dataset_name, 'data', 'MuCo-3DHP.json')
         self.smpl_param_path = osp.join(cfg.data_dir, dataset_name, 'data', 'smpl_param.json')
         self.fitting_thr = 45  # milimeter
+
+        self.num_person = cfg.num_person
 
         # MuCo joint set
         self.muco_joint_num = 21
@@ -82,6 +84,9 @@ class MuCo(torch.utils.data.Dataset):
         self.joint_num, self.skeleton, self.flip_pairs = self.get_joint_setting(self.input_joint_name)
         self.datalist = self.load_data()
 
+        # The test dataset MuCo or Human3.6
+        self.testset_name = 'Human36M'
+
     def get_stat(self):
         ordered_stats = []
         for joint in self.human36_joints_name:
@@ -135,11 +140,6 @@ class MuCo(torch.utils.data.Dataset):
             ann_ids = db.getAnnIds(img_id)
             anns = db.loadAnns(ann_ids)
 
-            # sample closest subject
-            root_depths = [ann['keypoints_cam'][self.muco_root_joint_idx][2] for ann in anns]
-            closest_pid = root_depths.index(min(root_depths))
-            pid_list = [closest_pid]
-
             # sample close subjects
             # for i in range(len(anns)):
             #     if i == closest_pid:
@@ -156,6 +156,24 @@ class MuCo(torch.utils.data.Dataset):
             #             picked = False
             #     if picked:
             #         pid_list.append(i)
+
+            num_picked = 0
+            pid_list = []
+            root_depths = [ann['keypoints_cam'][self.muco_root_joint_idx][2] for ann in anns]
+            closest_pid = root_depths.index(min(root_depths))
+            pid_list.append(closest_pid)
+            num_picked += 1
+            # sample other subjects
+            for i in range(len(anns)):
+                if num_picked == self.num_person:
+                    break
+                else:
+
+            #TODO just sample some closest person
+
+
+
+
 
             for pid in pid_list:
                 joint_cam = np.array(anns[pid]['keypoints_cam'])
