@@ -140,40 +140,29 @@ class MuCo(torch.utils.data.Dataset):
             ann_ids = db.getAnnIds(img_id)
             anns = db.loadAnns(ann_ids)
 
-            # sample close subjects
-            # for i in range(len(anns)):
-            #     if i == closest_pid:
-            #         continue
-            #     picked = True
-            #     for j in range(len(anns)):
-            #         if i == j:
-            #             continue
-            #         dist = (np.array(anns[i]['keypoints_cam'][self.muco_root_joint_idx]) - np.array(
-            #             anns[j]['keypoints_cam'][self.muco_root_joint_idx])) ** 2
-            #         dist_2d = math.sqrt(np.sum(dist[:2]))
-            #         dist_3d = math.sqrt(np.sum(dist))
-            #         if dist_2d < 500 or dist_3d < 500:
-            #             picked = False
-            #     if picked:
-            #         pid_list.append(i)
-
-            num_picked = 0
-            pid_list = []
             root_depths = [ann['keypoints_cam'][self.muco_root_joint_idx][2] for ann in anns]
             closest_pid = root_depths.index(min(root_depths))
-            pid_list.append(closest_pid)
-            num_picked += 1
+
             # sample other subjects
+            dist_dict = {}
             for i in range(len(anns)):
-                if num_picked == self.num_person:
-                    break
-                else:
+                dist = (np.array(anns[i]['keypoints_cam'][self.muco_root_joint_idx]) - np.array(anns[closest_pid]['keypoints_cam'][self.muco_root_joint_idx])) ** 2
+                dist_2d = math.sqrt(np.sum(dist[:2]))
+                dist_dict[i] = dist_2d
+            sorted_dist_dict = {k:v for k,v in sorted(dist_dict.items(), key=lambda item:item[1])}
+            if self.num_person >= len(anns):
+                pid_list = list[sorted_dist_dict.keys()]
+            else:
+                pid_list = list[sorted_dist_dict.keys()][:self.num_person]
 
-            #TODO just sample some closest person
-
-
-
-
+            ann_id_list = []
+            img_path_list = []
+            box_list = []
+            joint_img_multi_person_list = []
+            joint_cam_multi_person_list = []
+            joint_valid_multi_person_list = []
+            cam_param_multi_person_list = []
+            smpl_param_multi_person_list = []
 
             for pid in pid_list:
                 joint_cam = np.array(anns[pid]['keypoints_cam'])
@@ -194,17 +183,34 @@ class MuCo(torch.utils.data.Dataset):
                 except KeyError:
                     continue
 
-                datalist.append({
-                    'annot_id': ann_ids[pid],
-                    'img_path': img_path,
-                    'img_shape': (img_height, img_width),
-                    'bbox': bbox,
-                    'joint_img': joint_img,
-                    'joint_cam': joint_cam,
-                    'joint_valid': joint_valid,
-                    'cam_param': cam_param,
-                    'smpl_param': smpl_param
-                })
+                ann_id_list.append(ann_ids[pid])
+                img_path_list.append(img_path)
+                box_list.append(bbox)
+                joint_img_multi_person_list.append(joint_img)
+                joint_cam_multi_person_list.append(joint_cam)
+                joint_valid_multi_person_list.append(joint_valid)
+                cam_param_multi_person_list.append(cam_param)
+                smpl_param_multi_person_list.append(smpl_param)
+
+
+            box_multi_person = np.stack(box_list)
+            joint_img_multi_person = np.stack(joint_img_multi_person_list)
+            joint_cam_multi_person = np.stack(joint_cam_multi_person_list)
+            joint_valid_multi_person = np.stack(joint_valid_multi_person_list)
+            cam_param_multi_person = np.stack(cam_param_multi_person_list)
+            smpl_param_multi_person = np.stack(smpl_param_multi_person_list)
+
+            datalist.append({
+                'annot_id': ann_id_list,
+                'img_path': img_path_list,
+                'img_shape': (img_height, img_width),
+                'bbox': box_multi_person,
+                'joint_img': joint_img_multi_person,
+                'joint_cam': joint_cam_multi_person,
+                'joint_valid': joint_valid_multi_person,
+                'cam_param': cam_param_multi_person,
+                'smpl_param': smpl_param_multi_person
+            })
 
             if self.debug and len(datalist) > 10000:
                 break
@@ -283,50 +289,57 @@ class MuCo(torch.utils.data.Dataset):
         return len(self.datalist)
 
     def __getitem__(self, idx):
+        # joint_img_multi_person = np.zeros()
+        # mesh_cam_multi_person =
+        # lift_pose_3d_multi_person =
+        # reg_pose3d_multi_person =
+        #
+        # mesh_valid_multi_person =
+        # lift_joint_valid_multi_person =
+        # reg_pose3d_valid_multi_person =
+
         data = copy.deepcopy(self.datalist[idx])
         img_path, img_shape, bbox, smpl_param, cam_param = data['img_path'], data['img_shape'], data['bbox'], data[
             'smpl_param'], data['cam_param']
-        flip, rot = augm_params(is_train=(self.data_split == 'train'))
 
-        # regress h36m, coco joints
-        mesh_cam, joint_cam_smpl = self.get_smpl_coord(smpl_param)
-        joint_cam_h36m, joint_img_h36m = self.get_joints_from_mesh(mesh_cam, 'human36', cam_param)
-        joint_cam_coco, joint_img_coco = self.get_joints_from_mesh(mesh_cam, 'coco', cam_param)
-        # vis_3d_save(joint_cam_h36m, self.human36_skeleton, prefix='3d_gt', gt=True)
-        # vis_2d_joints(joint_img_h36m, img_path, self.human36_skeleton, prefix='h36m joint')
-        # vis_2d_joints(joint_img_coco, img_path, self.coco_skeleton, prefix='coco joint')
+        for i in range(len(img_path)):
+            flip, rot = augm_params(is_train=(self.data_split == 'train'))
 
-        # root relative camera coordinate
-        mesh_cam = mesh_cam - joint_cam_h36m[:1]
-        joint_cam_coco = joint_cam_coco - joint_cam_coco[-2:-1]
-        joint_cam_h36m = joint_cam_h36m - joint_cam_h36m[:1]
+            # regress h36m, coco joints
+            mesh_cam, joint_cam_smpl = self.get_smpl_coord(smpl_param)
+            joint_cam_h36m, joint_img_h36m = self.get_joints_from_mesh(mesh_cam, 'human36', cam_param)
+            joint_cam_coco, joint_img_coco = self.get_joints_from_mesh(mesh_cam, 'coco', cam_param)
 
-        if self.input_joint_name == 'coco':
-            joint_img, joint_cam = joint_img_coco, joint_cam_coco
-        elif self.input_joint_name == 'human36':
-            joint_img, joint_cam = joint_img_h36m, joint_cam_h36m
+            # root relative camera coordinate
+            mesh_cam = mesh_cam - joint_cam_h36m[:1]
+            joint_cam_coco = joint_cam_coco - joint_cam_coco[-2:-1]
+            joint_cam_h36m = joint_cam_h36m - joint_cam_h36m[:1]
 
-        # make new bbox
-        init_bbox = get_bbox(joint_img)
-        bbox = process_bbox(init_bbox.copy())
+            if self.input_joint_name == 'coco':
+                joint_img, joint_cam = joint_img_coco, joint_cam_coco
+            elif self.input_joint_name == 'human36':
+                joint_img, joint_cam = joint_img_h36m, joint_cam_h36m
 
-        # aug
-        joint_img, trans = j2d_processing(joint_img.copy(), (cfg.MODEL.input_shape[1], cfg.MODEL.input_shape[0]),
-                                          bbox, rot, flip, self.flip_pairs)
-        joint_cam = j3d_processing(joint_cam, rot, flip, self.flip_pairs)
+            # make new bbox
+            init_bbox = get_bbox(joint_img)
+            bbox = process_bbox(init_bbox.copy())
 
-        if not cfg.DATASET.use_gt_input:
-            joint_img = self.replace_joint_img(joint_img, bbox, trans)
+            # aug
+            joint_img, trans = j2d_processing(joint_img.copy(), (cfg.MODEL.input_shape[1], cfg.MODEL.input_shape[0]),
+                                              bbox, rot, flip, self.flip_pairs)
+            joint_cam = j3d_processing(joint_cam, rot, flip, self.flip_pairs)
 
-        #  -> 0~1
-        joint_img = joint_img[:, :2]
-        joint_img /= np.array([[cfg.MODEL.input_shape[1], cfg.MODEL.input_shape[0]]])
+            if not cfg.DATASET.use_gt_input:
+                joint_img = self.replace_joint_img(joint_img, bbox, trans)
 
-        # normalize loc&scale
-        mean, std = np.mean(joint_img, axis=0), np.std(joint_img, axis=0)
-        joint_img = (joint_img.copy() - mean) / std
+            #  -> 0~1
+            joint_img = joint_img[:, :2]
+            joint_img /= np.array([[cfg.MODEL.input_shape[1], cfg.MODEL.input_shape[0]]])
 
-        if cfg.MODEL.name == 'pose2mesh_net':
+            # normalize loc&scale
+            mean, std = np.mean(joint_img, axis=0), np.std(joint_img, axis=0)
+            joint_img = (joint_img.copy() - mean) / std
+
             # default valid
             mesh_valid = np.ones((len(mesh_cam), 1), dtype=np.float32)
             reg_joint_valid = np.ones((len(joint_cam_h36m), 1), dtype=np.float32)
@@ -336,16 +349,12 @@ class MuCo(torch.utils.data.Dataset):
             if error > self.fitting_thr:
                 mesh_valid[:], reg_joint_valid[:], lift_joint_valid[:] = 0, 0, 0
 
-            inputs = {'pose2d': joint_img}
-            targets = {'mesh': mesh_cam / 1000, 'lift_pose3d': joint_cam, 'reg_pose3d': joint_cam_h36m}
-            meta = {'mesh_valid': mesh_valid, 'lift_pose3d_valid': lift_joint_valid, 'reg_pose3d_valid': reg_joint_valid}
+        inputs = {'pose2d': joint_img}
+        targets = {'mesh': mesh_cam / 1000, 'lift_pose3d': joint_cam, 'reg_pose3d': joint_cam_h36m}
+        meta = {'mesh_valid': mesh_valid, 'lift_pose3d_valid': lift_joint_valid, 'reg_pose3d_valid': reg_joint_valid}
 
-            return inputs, targets, meta
+        return inputs, targets, meta
 
-        elif cfg.MODEL.name == 'posenet':
-            # default valid
-            joint_valid = np.ones((len(joint_cam), 1), dtype=np.float32)
-            return joint_img, joint_cam, joint_valid
 
     def replace_joint_img(self, joint_img, bbox, trans):
         if self.input_joint_name == 'coco':
