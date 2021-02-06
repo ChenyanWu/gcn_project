@@ -13,7 +13,7 @@ class FlatPose2Mesh(nn.Module):
         self.pose2mesh = meshnet.get_model(num_joint_input_chan=2 + 3, num_mesh_output_chan=3, graph_L=graph_L)
 
     def forward(self, pose2d, pose3d):
-        pose_combine = torch.cat((pose2d, pose3d.detach() / 1000), dim=2)
+        pose_combine = torch.cat((pose2d, pose3d / 1000), dim=2)
         cam_mesh = self.pose2mesh(pose_combine)
 
         return cam_mesh, pose3d

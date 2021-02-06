@@ -18,7 +18,7 @@ def init_dirs(dir_list):
 cfg = edict()
 
 # number of person
-cfg.num_person = 10
+cfg.num_person = 1
 """ Directory """
 cfg.cur_dir = osp.dirname(os.path.abspath(__file__))
 cfg.root_dir = osp.join(cfg.cur_dir, '../../')

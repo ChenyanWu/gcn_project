@@ -176,6 +176,14 @@ class Human36M(torch.utils.data.Dataset):
             # smpl parameter load
             with open(osp.join(self.annot_path, 'Human36M_subject' + str(subject) + '_smpl_param.json'), 'r') as f:
                 smpl_params[str(subject)] = json.load(f)
+        # load the predicted 3D pose camera coordinates
+        if self.data_split == 'train':
+            with open(osp.join(self.annot_path, 'train_samplerate_5_bbox_root_pose_human36m_output_image_id.json'), 'r') as f:
+                joint_cam_final_list = json.load(f)
+        else:
+            # with open(osp.join(self.annot_path, 'test_samplerate_1_bbox_root_pose_human36m_output_image_id.json'), 'r') as f:
+            with open(osp.join(self.annot_path, 'bbox_root_pose_human36m_output_image_id.json'), 'r') as f:
+                joint_cam_final_list = json.load(f)
         db.createIndex()
 
         skip_idx = []
@@ -220,10 +228,21 @@ class Human36M(torch.utils.data.Dataset):
             # project world coordinate to cam, image coordinate space
             joint_world = np.array(joints[str(subject)][str(action_idx)][str(subaction_idx)][str(frame_idx)],
                                    dtype=np.float32)
+            # raw paper method
             joint_cam = world2cam(joint_world, R, t)
             joint_img = cam2pixel(joint_cam, f, c)
             joint_vis = np.ones((self.human36_joint_num, 1))
-
+            # Chenyan produced method
+            # joint_cam_original = world2cam(joint_world, R, t)
+            # joint_img_original = cam2pixel(joint_cam_original, f, c)
+            # joint_vis = np.ones((self.human36_joint_num, 1))
+            #
+            # joint_cam = np.array(joint_cam_final_list[str(image_id)]['joint_cam'], dtype=np.float32)
+            # joint_img = cam2pixel(joint_cam, f, c)
+            try:
+                joint_cam_pred_relative = np.array(joint_cam_final_list[str(image_id)]['joint_cam'], dtype=np.float32)
+            except:
+                raise
             bbox = process_bbox(np.array(ann['bbox']))
             if bbox is None: continue
 
@@ -235,6 +254,7 @@ class Human36M(torch.utils.data.Dataset):
                 'img_hw': (img['height'], img['width']),
                 'joint_img': joint_img,  # [x_img, y_img, z_cam]
                 'joint_cam': joint_cam,  # [X, Y, Z] in camera coordinate
+                'joint_cam_pred_relative': joint_cam_pred_relative,
                 'joint_vis': joint_vis,
                 'smpl_param': smpl_param,
                 'cam_param': cam_param})
@@ -313,6 +333,7 @@ class Human36M(torch.utils.data.Dataset):
 
         # h36m joints from datasets
         joint_cam_h36m, joint_img_h36m = data['joint_cam'], data['joint_img'][:, :2]
+        joint_cam_pred_relative = data['joint_cam_pred_relative']
 
         # root relative camera coordinate
         mesh_cam = mesh_cam - joint_cam_h36m[:1]
@@ -330,6 +351,7 @@ class Human36M(torch.utils.data.Dataset):
         joint_img, trans = j2d_processing(joint_img.copy(), (cfg.MODEL.input_shape[1], cfg.MODEL.input_shape[0]),
                                           bbox, rot, flip, self.flip_pairs)
         joint_cam = j3d_processing(joint_cam, rot, flip, self.flip_pairs)
+        joint_cam_pred_relative = j3d_processing(joint_cam_pred_relative, rot, flip, self.flip_pairs)
 
         if not cfg.DATASET.use_gt_input:
             joint_img = self.replace_joint_img(idx, img_id, joint_img, bbox, trans)
@@ -360,7 +382,8 @@ class Human36M(torch.utils.data.Dataset):
         # change the input into multi-person
         joint_img = np.concatenate([joint_img, np.ones(((self.num_person-1) * self.joint_num,2), dtype=np.float32)], axis=0)
         joint_cam = np.concatenate([joint_cam, np.ones(((self.num_person-1) * self.joint_num,3), dtype=np.float32)], axis=0)
-        inputs = {'pose2d': joint_img}
+        joint_cam_pred_relative = np.concatenate([joint_cam_pred_relative, np.ones(((self.num_person-1) * self.joint_num,3), dtype=np.float32)], axis=0)
+        inputs = {'pose2d': joint_img, 'lift_pose3d_pred': joint_cam_pred_relative}
         targets = {'mesh': mesh_cam / 1000, 'lift_pose3d': joint_cam, 'reg_pose3d': joint_cam_h36m}
         meta = {'mesh_valid': mesh_valid, 'lift_pose3d_valid': lift_joint_valid, 'reg_pose3d_valid': reg_joint_valid}
 
@@ -555,7 +578,7 @@ if __name__ == '__main__':
 
     update_config('asset/yaml/pose3d2mesh_human36J_train_human36.yml')
 
-    train_dataset = Human36M('train')
+    train_dataset = Human36M('test')
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=16,
@@ -567,4 +590,4 @@ if __name__ == '__main__':
         if i == 1:
             break
         else:
-            print(b[0]['pose2d'].shape, b[1]['lift_pose3d'].shape)
+            print(b[0]['pose2d'].shape, b[1]['lift_pose3d'].shape, b[0]['lift_pose3d_pred'])
