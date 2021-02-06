@@ -120,7 +120,8 @@ class Trainer:
         for i, (inputs, targets, meta) in enumerate(self.batch_generator):
             # convert to cuda
             input_2dpose = inputs['pose2d'].cuda()
-            input_3dpose = inputs['lift_pose3d_pred'].cuda()
+            # input_3dpose = inputs['lift_pose3d_pred'].cuda()
+            input_3dpose = targets['lift_pose3d'].cuda()
             gt_lift3dpose, gt_reg3dpose, gt_mesh = targets['lift_pose3d'].cuda(), targets['reg_pose3d'].cuda(), targets['mesh'].cuda()
             val_lift3dpose, val_reg3dpose, val_mesh = meta['lift_pose3d_valid'].cuda(), meta['reg_pose3d_valid'].cuda(), meta['mesh_valid'].cuda()
 
@@ -193,7 +194,7 @@ class Tester:
         with torch.no_grad():
             for i, (inputs, targets, meta) in enumerate(self.val_loader):
                 input_pose, gt_pose3d, gt_mesh = inputs['pose2d'].cuda(), targets['reg_pose3d'].cuda(), targets['mesh'].cuda()
-                # input_pose3d = targets['lift_pose3d'].cuda()
+                # input_3dpose = targets['lift_pose3d'].cuda()
                 input_3dpose = inputs['lift_pose3d_pred'].cuda()
                 pred_mesh, pred_pose_from2d = self.model(input_pose, input_3dpose)
                 pred_mesh = pred_mesh[:, self.val_dataset.graph_perm_reverse[:self.val_dataset.mesh_model.face.max() + 1], :]
