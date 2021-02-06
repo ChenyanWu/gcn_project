@@ -181,8 +181,8 @@ class Human36M(torch.utils.data.Dataset):
             with open(osp.join(self.annot_path, 'train_samplerate_5_bbox_root_pose_human36m_output_image_id.json'), 'r') as f:
                 joint_cam_final_list = json.load(f)
         else:
-            # with open(osp.join(self.annot_path, 'test_samplerate_1_bbox_root_pose_human36m_output_image_id.json'), 'r') as f:
-            with open(osp.join(self.annot_path, 'bbox_root_pose_human36m_output_image_id.json'), 'r') as f:
+            with open(osp.join(self.annot_path, 'test_samplerate_1_bbox_root_pose_human36m_output_image_id.json'), 'r') as f:
+            # with open(osp.join(self.annot_path, 'bbox_root_pose_human36m_output_image_id.json'), 'r') as f:
                 joint_cam_final_list = json.load(f)
         db.createIndex()
 
