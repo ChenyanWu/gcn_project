@@ -63,14 +63,14 @@ class PW3D(torch.utils.data.Dataset):
             (17, 11), (17, 12), (17, 18), (18, 5), (18, 6), (18, 0))
         self.joint_regressor_coco = torch.Tensor(self.mesh_model.joint_regressor_coco)
 
-        input_joint_name = 'coco'
+        input_joint_name = cfg.DATASET.input_joint_set
         self.joint_num, self.skeleton, self.flip_pairs = self.get_joint_setting(input_joint_name)
 
         self.datalist = self.load_data()
         self.datalist_pose2d_det = self.load_pose2d_det(self.det_data_path)
 
         self.graph_Adj, self.graph_L, self.graph_perm, self.graph_perm_reverse = \
-            build_coarse_graphs(self.mesh_model.face, self.joint_num, self.skeleton, self.flip_pairs, levels=9)
+            build_coarse_graphs(1, self.mesh_model.face, self.joint_num, self.skeleton, self.flip_pairs, levels=9)
 
         print("Check lengths of annotation and detection output: ", len(self.datalist), len(self.datalist_pose2d_det))
 
@@ -155,12 +155,24 @@ class PW3D(torch.utils.data.Dataset):
         joint_coord = np.concatenate((joint_coord, pelvis, neck))
         return joint_coord
 
+    # def get_coco_from_mesh(self, mesh_coord_cam, cam_param):
+    #     # regress coco joints
+    #     mesh = torch.Tensor(mesh_coord_cam)
+    #     joint_coord_cam = torch.matmul(self.joint_regressor_coco, mesh)
+    #     joint_coord_cam = joint_coord_cam.numpy()
+    #     joint_coord_cam = self.add_pelvis_and_neck(joint_coord_cam)
+    #     # projection
+    #     f, c = cam_param['focal'], cam_param['princpt']
+    #     joint_coord_img = cam2pixel(joint_coord_cam, f, c)
+    #
+    #     joint_coord_img[:, 2] = 1
+    #     return joint_coord_cam, joint_coord_img
     def get_coco_from_mesh(self, mesh_coord_cam, cam_param):
         # regress coco joints
         mesh = torch.Tensor(mesh_coord_cam)
-        joint_coord_cam = torch.matmul(self.joint_regressor_coco, mesh)
+        joint_coord_cam = torch.matmul(self.joint_regressor_human36, mesh)
         joint_coord_cam = joint_coord_cam.numpy()
-        joint_coord_cam = self.add_pelvis_and_neck(joint_coord_cam)
+        # joint_coord_cam = self.add_pelvis_and_neck(joint_coord_cam)
         # projection
         f, c = cam_param['focal'], cam_param['princpt']
         joint_coord_img = cam2pixel(joint_coord_cam, f, c)
