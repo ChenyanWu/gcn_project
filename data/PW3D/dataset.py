@@ -48,6 +48,7 @@ class PW3D(torch.utils.data.Dataset):
         self.human36_skeleton = (
             (0, 7), (7, 8), (8, 9), (9, 10), (8, 11), (11, 12), (12, 13), (8, 14), (14, 15), (15, 16), (0, 1), (1, 2),
             (2, 3), (0, 4), (4, 5), (5, 6))
+        self.human36_flip_pairs = ((1, 4), (2, 5), (3, 6), (14, 11), (15, 12), (16, 13))
         self.joint_regressor_human36 = torch.Tensor(self.mesh_model.joint_regressor_h36m)
 
         # COCO joint set
@@ -219,16 +220,22 @@ class PW3D(torch.utils.data.Dataset):
         mean, std = np.mean(joint_img_coco, axis=0), np.std(joint_img_coco, axis=0)
         joint_img_coco = (joint_img_coco.copy() - mean) / std
 
-        if cfg.MODEL.name == 'pose2mesh_net':
-            inputs = {'pose2d': joint_img_coco}
-            targets = {'mesh': mesh_cam / 1000, 'reg_pose3d': joint_cam_h36m}
-            meta = {'dummy': np.ones(1, dtype=np.float32)}
+        inputs = {'pose2d': joint_img_coco,  'lift_pose3d_pred': joint_cam_h36m}
+        targets = {'mesh': mesh_cam / 1000, 'reg_pose3d': joint_cam_h36m}
+        meta = {'dummy': np.ones(1, dtype=np.float32)}
 
-            return inputs, targets, meta
+        return inputs, targets, meta
 
-        elif cfg.MODEL.name == 'posenet':
-            joint_valid = np.ones((len(joint_cam_coco), 1), dtype=np.float32)  # dummy
-            return joint_img_coco, joint_cam_coco, joint_valid
+        # if cfg.MODEL.name == 'pose2mesh_net':
+        #     inputs = {'pose2d': joint_img_coco}
+        #     targets = {'mesh': mesh_cam / 1000, 'reg_pose3d': joint_cam_h36m}
+        #     meta = {'dummy': np.ones(1, dtype=np.float32)}
+        #
+        #     return inputs, targets, meta
+        #
+        # elif cfg.MODEL.name == 'posenet':
+        #     joint_valid = np.ones((len(joint_cam_coco), 1), dtype=np.float32)  # dummy
+        #     return joint_img_coco, joint_cam_coco, joint_valid
 
     def compute_joint_err(self, pred_joint, target_joint):
         # root align joint
