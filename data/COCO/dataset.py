@@ -20,7 +20,7 @@ from vis import vis_3d_pose, vis_2d_pose
 
 
 class MSCOCO(torch.utils.data.Dataset):
-    def __init__(self, data_split, args):
+    def __init__(self, data_split= 'train', args= None):
         dataset_name = 'COCO'
         self.data_split = 'train'
         self.img_path = osp.join(cfg.data_dir, dataset_name, 'images')
@@ -33,10 +33,16 @@ class MSCOCO(torch.utils.data.Dataset):
         self.face_kps_vertex = self.mesh_model.face_kps_vertex
         self.smpl_vertex_num = 6890
         self.smpl_joint_num = 24
+        self.smpl_joints_name = (
+            'Pelvis', 'L_Hip', 'R_Hip', 'Torso', 'L_Knee', 'R_Knee', 'Spine', 'L_Ankle', 'R_Ankle', 'Chest', 'L_Toe',
+            'R_Toe', 'Neck', 'L_Thorax', 'R_Thorax', 'Head', 'L_Shoulder', 'R_Shoulder', 'L_Elbow', 'R_Elbow',
+            'L_Wrist',
+            'R_Wrist', 'L_Hand', 'R_Hand', 'Nose', 'L_Eye', 'R_Eye', 'L_Ear', 'R_Ear')
         self.smpl_flip_pairs = ((1, 2), (4, 5), (7, 8), (10, 11), (13, 14), (16, 17), (18, 19), (20, 21), (22, 23))
         self.smpl_skeleton = (
             (0, 1), (1, 4), (4, 7), (7, 10), (0, 2), (2, 5), (5, 8), (8, 11), (0, 3), (3, 6), (6, 9), (9, 14), (14, 17),
             (17, 19), (19, 21), (21, 23), (9, 13), (13, 16), (16, 18), (18, 20), (20, 22), (9, 12), (12, 15))
+        self.joint_regressor_smpl = self.mesh_model.joint_regressor
 
         # h36m skeleton
         self.human36_eval_joint = (1, 2, 3, 4, 5, 6, 8, 10, 11, 12, 13, 14, 15, 16)
@@ -64,6 +70,19 @@ class MSCOCO(torch.utils.data.Dataset):
             (17, 11), (17, 12), (17, 18), (18, 5), (18, 6), (18, 0))
         self.coco_root_joint_idx = self.coco_joints_name.index('Pelvis')
         self.joint_regressor_coco = self.mesh_model.joint_regressor_coco
+
+        # MuPo joint set
+        self.mupo_joint_num = 17
+        self.mupo_joints_name = (
+            'Head_top', 'Thorax', 'R_Shoulder', 'R_Elbow', 'R_Wrist', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Hip',
+            'R_Knee',
+            'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Pelvis', 'Spine', 'Head')
+        self.mupo_flip_pairs = ((2, 5), (3, 6), (4, 7), (8, 11), (9, 12), (10, 13))
+        self.mupo_skeleton = (
+            (0, 16), (16, 1), (1, 15), (15, 14), (14, 8), (14, 11), (8, 9), (9, 10), (11, 12), (12, 13),
+            (1, 2), (2, 3), (3, 4), (1, 5), (5, 6), (6, 7))
+        self.mupo_root_joint_idx = self.mupo_joints_name.index('Pelvis')
+        self.h36m2mpi = [10, 8, 14, 15, 16, 11, 12, 13, 4, 5, 6, 1, 2, 3, 0, 7, 9]
 
         self.input_joint_name = cfg.DATASET.input_joint_set
         self.joint_num, self.skeleton, self.flip_pairs = self.get_joint_setting(self.input_joint_name)
@@ -223,7 +242,8 @@ class MSCOCO(torch.utils.data.Dataset):
         # img_name = img_path.split('/')[-1][:-4]
 
         smpl_param, cam_param = smplify_result['smpl_param'], smplify_result['cam_param']
-        # regress h36m, coco joints
+
+        # regress h36m, coco, muco joints
         mesh_cam, joint_cam_smpl = self.get_smpl_coord(smpl_param)
         joint_cam_h36m, joint_img_h36m = self.get_joints_from_mesh(mesh_cam, 'human36', cam_param)
         joint_cam_coco, joint_img_coco = self.get_joints_from_mesh(mesh_cam, 'coco', cam_param)
@@ -250,6 +270,9 @@ class MSCOCO(torch.utils.data.Dataset):
                                           bbox, rot, flip, self.flip_pairs)
         joint_cam = j3d_processing(joint_cam, rot, flip, self.flip_pairs)
 
+        # TODO compute the predictive joints
+        joint_cam_pred_relative = joint_cam
+
         if not cfg.DATASET.use_gt_input:
             joint_img = self.replace_joint_img(joint_img, bbox, trans)
 
@@ -261,30 +284,44 @@ class MSCOCO(torch.utils.data.Dataset):
         mean, std = np.mean(joint_img, axis=0), np.std(joint_img, axis=0)
         joint_img = (joint_img.copy() - mean) / std
 
-        if cfg.MODEL.name == 'pose2mesh_net':
-            # default valid
-            mesh_valid = np.ones((len(mesh_cam), 1), dtype=np.float32)
-            reg_joint_valid = np.ones((len(joint_cam_h36m), 1), dtype=np.float32)
-            lift_joint_valid = np.ones((len(joint_cam), 1), dtype=np.float32)
-            error = self.get_fitting_error(tight_bbox, data['joint_img'], joint_img_coco[:17], data['joint_valid'])
-            if error > self.fitting_thr:
-                mesh_valid[:], reg_joint_valid[:], lift_joint_valid[:] = 0, 0, 0
+        # TODO change the input into multi-person
 
-            inputs = {'pose2d': joint_img}
-            targets = {'mesh': mesh_cam / 1000, 'lift_pose3d': joint_cam, 'reg_pose3d': joint_cam_h36m}
-            meta = {'mesh_valid': mesh_valid, 'lift_pose3d_valid': lift_joint_valid, 'reg_pose3d_valid': reg_joint_valid}
+        mesh_valid = np.ones((len(mesh_cam), 1), dtype=np.float32)
+        reg_joint_valid = np.ones((len(joint_cam_h36m), 1), dtype=np.float32)
+        lift_joint_valid = np.ones((len(joint_cam), 1), dtype=np.float32)
+        error = self.get_fitting_error(tight_bbox, data['joint_img'], joint_img_coco[:17], data['joint_valid'])
+        if error > self.fitting_thr:
+            mesh_valid[:], reg_joint_valid[:], lift_joint_valid[:] = 0, 0, 0
+        inputs = {'pose2d': joint_img, 'lift_pose3d_pred': joint_cam_pred_relative}
+        targets = {'mesh': mesh_cam / 1000, 'lift_pose3d': joint_cam, 'reg_pose3d': joint_cam_h36m}
+        meta = {'mesh_valid': mesh_valid, 'lift_pose3d_valid': lift_joint_valid, 'reg_pose3d_valid': reg_joint_valid}
 
-            return inputs, targets, meta
+        return inputs, targets, meta
 
-        elif cfg.MODEL.name == 'posenet':
-            # default valid
-            joint_valid = np.ones((len(joint_cam), 1), dtype=np.float32)
-            # compute fitting error
-            error = self.get_fitting_error(tight_bbox, data['joint_img'], joint_img_coco[:17], data['joint_valid'])
-            if error > self.fitting_thr:
-                joint_valid[:, :] = 0
-
-            return joint_img, joint_cam, joint_valid
+        # if cfg.MODEL.name == 'pose2mesh_net':
+        #     # default valid
+        #     mesh_valid = np.ones((len(mesh_cam), 1), dtype=np.float32)
+        #     reg_joint_valid = np.ones((len(joint_cam_h36m), 1), dtype=np.float32)
+        #     lift_joint_valid = np.ones((len(joint_cam), 1), dtype=np.float32)
+        #     error = self.get_fitting_error(tight_bbox, data['joint_img'], joint_img_coco[:17], data['joint_valid'])
+        #     if error > self.fitting_thr:
+        #         mesh_valid[:], reg_joint_valid[:], lift_joint_valid[:] = 0, 0, 0
+        #
+        #     inputs = {'pose2d': joint_img}
+        #     targets = {'mesh': mesh_cam / 1000, 'lift_pose3d': joint_cam, 'reg_pose3d': joint_cam_h36m}
+        #     meta = {'mesh_valid': mesh_valid, 'lift_pose3d_valid': lift_joint_valid, 'reg_pose3d_valid': reg_joint_valid}
+        #
+        #     return inputs, targets, meta
+        #
+        # elif cfg.MODEL.name == 'posenet':
+        #     # default valid
+        #     joint_valid = np.ones((len(joint_cam), 1), dtype=np.float32)
+        #     # compute fitting error
+        #     error = self.get_fitting_error(tight_bbox, data['joint_img'], joint_img_coco[:17], data['joint_valid'])
+        #     if error > self.fitting_thr:
+        #         joint_valid[:, :] = 0
+        #
+        #     return joint_img, joint_cam, joint_valid
 
     def replace_joint_img(self, joint_img, bbox, trans):
         if self.input_joint_name == 'coco':
@@ -306,4 +343,24 @@ class MSCOCO(torch.utils.data.Dataset):
                 joint_img_h36m = joint_img_h36m[:, :2] + joint_syn_error
                 return joint_img_h36m
 
+if __name__ == '__main__':
+    import argparse
+    from core.config import cfg, update_config
 
+    import torchvision.transforms as transforms
+    import torch
+
+    train_dataset = MSCOCO('train')
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset,
+        batch_size=16,
+        shuffle=False,
+        num_workers=8,
+        pin_memory=False
+    )
+    for i, b in enumerate(train_loader):
+        if i == 1:
+            break
+        else:
+            # print(b[0]['pose2d'].shape, b[1]['lift_pose3d'].shape, b[0]['lift_pose3d_pred'])
+            print(b[0]['pose2d'][0])

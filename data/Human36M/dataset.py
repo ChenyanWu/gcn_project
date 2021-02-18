@@ -351,7 +351,11 @@ class Human36M(torch.utils.data.Dataset):
         joint_img, trans = j2d_processing(joint_img.copy(), (cfg.MODEL.input_shape[1], cfg.MODEL.input_shape[0]),
                                           bbox, rot, flip, self.flip_pairs)
         joint_cam = j3d_processing(joint_cam, rot, flip, self.flip_pairs)
-        joint_cam_pred_relative = j3d_processing(joint_cam_pred_relative, rot, flip, self.flip_pairs)
+
+        if cfg.DATASET.use_gt_3d_input:
+            joint_cam_pred_relative = joint_cam
+        else:
+            joint_cam_pred_relative = j3d_processing(joint_cam_pred_relative, rot, flip, self.flip_pairs)
 
         if not cfg.DATASET.use_gt_input:
             joint_img = self.replace_joint_img(idx, img_id, joint_img, bbox, trans)

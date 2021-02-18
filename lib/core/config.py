@@ -43,10 +43,11 @@ init_dirs([cfg.output_dir, cfg.graph_dir, cfg.vis_dir, cfg.checkpoint_dir])
 cfg.DATASET = edict()
 cfg.DATASET.train_list = ['Human36M', 'COCO', 'MuCo']
 cfg.DATASET.test_list = ['PW3D']
-cfg.DATASET.input_joint_set = 'coco'
+cfg.DATASET.input_joint_set = 'human36'
 cfg.DATASET.target_joint_set = 'human36'
 cfg.DATASET.workers = 16
 cfg.DATASET.use_gt_input = True
+cfg.DATASET.use_gt_3d_input = False
 
 """ Model """
 cfg.MODEL = edict()
