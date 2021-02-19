@@ -19,7 +19,7 @@ MODEL:
 
 TRAIN:
     print_freq: 10
-    batch_size: 64
+    batch_size: 256
     shuffle: True
     begin_epoch: 1
     end_epoch: 15
@@ -35,5 +35,5 @@ AUG:
     rotate_factor: 0
 
 TEST:
-    batch_size: 64
+    batch_size: 128
     shuffle: False
