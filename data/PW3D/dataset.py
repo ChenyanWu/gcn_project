@@ -22,7 +22,7 @@ from vis import vis_2d_pose, vis_3d_pose
 
 
 class PW3D(torch.utils.data.Dataset):
-    def __init__(self, data_split, args):
+    def __init__(self, data_split='test', args=None):
         dataset_name = 'PW3D'
         self.data_split = 'test'
         self.data_path = osp.join(cfg.data_dir, dataset_name, 'data')
@@ -350,3 +350,24 @@ class PW3D(torch.utils.data.Dataset):
         eval_summary = 'MPVPE (mm)         >> tot: %.2f\n' % (tot_err)
         print(eval_summary)
 
+if __name__ == '__main__':
+    import argparse
+    from core.config import cfg, update_config
+
+    import torchvision.transforms as transforms
+    import torch
+
+    train_dataset = PW3D('test')
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset,
+        batch_size=16,
+        shuffle=False,
+        num_workers=8,
+        pin_memory=False
+    )
+    for i, b in enumerate(train_loader):
+        if i == 1:
+            break
+        else:
+            print(b[0]['pose2d'].shape, b[0]['lift_pose3d_pred'].shape)
+            # print(b[0]['pose2d'][0])
