@@ -201,9 +201,10 @@ class PW3D(torch.utils.data.Dataset):
         rot, flip = 0, 0
 
         # Detection
-        detection_data = copy.deepcopy(self.datalist_pose2d_det[idx])
-        det_annot_id, det_joint_img_coco = detection_data['annotation_id'], np.array(detection_data['keypoints'], dtype=np.float32)
-        joint_img_coco = self.add_pelvis_and_neck(det_joint_img_coco)
+        # detection_data = copy.deepcopy(self.datalist_pose2d_det[idx])
+        # det_annot_id, det_joint_img_coco = detection_data['annotation_id'], np.array(detection_data['keypoints'], dtype=np.float32)
+        # joint_img_coco = self.add_pelvis_and_neck(det_joint_img_coco)
+        # Do not use dection result
 
         # smpl coordinates
         mesh_cam, joint_cam_smpl = self.get_smpl_coord(smpl_param)
@@ -221,8 +222,8 @@ class PW3D(torch.utils.data.Dataset):
         bbox = get_bbox(gt_joint_img_coco)
         bbox = process_bbox(bbox.copy())
 
-        if cfg.DATASET.use_gt_input:
-            joint_img_coco = gt_joint_img_coco
+        # direct use GT
+        joint_img_coco = gt_joint_img_coco
 
         # aug
         joint_img_coco, trans = j2d_processing(joint_img_coco.copy(), (cfg.MODEL.input_shape[1], cfg.MODEL.input_shape[0]),
@@ -357,6 +358,7 @@ if __name__ == '__main__':
     import torchvision.transforms as transforms
     import torch
 
+    update_config('asset/yaml/pose3d2mesh_mucoJ_train_human36.yml')
     train_dataset = PW3D('test')
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
