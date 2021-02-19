@@ -118,7 +118,12 @@ def update_config(config_file, list_file=None):
             k1, k2 = k.split('.')
             if k1 in cfg:
                 if k2 in cfg[k1]:
-                    cfg[k1][k2] = v
+                    if v.is_integer():
+                        cfg[k1][k2] = int(v)
+                    elif v.isdigit():
+                        cfg[k1][k2] = float(v)
+                    else:
+                        cfg[k1][k2] = v
                 else:
                     raise ValueError("{} not exist in config.py".format(k))
             else:
