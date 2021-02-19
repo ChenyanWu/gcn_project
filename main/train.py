@@ -13,7 +13,7 @@ logger.setLevel(logging.INFO)
 console = logging.StreamHandler()
 logging.getLogger('').addHandler(console)
 parser = argparse.ArgumentParser(description='Train Pose2Mesh')
-
+parser.add_argument('opts',help="Modify config options using the command-line",default=None,nargs=argparse.REMAINDER)
 parser.add_argument('--seed', type=int, default=123, help='random seed to use. Default=123')
 parser.add_argument('--resume_training', action='store_true', help='Resume Training')
 parser.add_argument('--debug', action='store_true', help='reduce dataset items')
@@ -23,7 +23,8 @@ parser.add_argument('--cfg', type=str, help='experiment configure file name')
 
 args = parser.parse_args()
 if args.cfg:
-    update_config(args.cfg)
+    update_config(args.cfg, args.opts)
+logger.info(cfg)
 torch.manual_seed(args.seed)
 os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
 print("Work on GPU: ", os.environ['CUDA_VISIBLE_DEVICES'])
@@ -34,6 +35,7 @@ trainer = Trainer(args, load_dir='')
 tester = Tester(args)  # if not args.debug else None
 
 logger.info("===> Start training...")
+
 for epoch in range(cfg.TRAIN.begin_epoch, cfg.TRAIN.end_epoch + 1):
     tester.test(epoch, current_model=trainer.model)
     trainer.train(epoch)

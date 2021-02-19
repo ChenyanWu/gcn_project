@@ -95,7 +95,7 @@ def _update_dict(k, v):
             raise ValueError("{}.{} not exist in config.py".format(k, vk))
 
 
-def update_config(config_file):
+def update_config(config_file, list_file=None):
     exp_config = None
     with open(config_file) as f:
         exp_config = edict(yaml.load(f))
@@ -110,5 +110,19 @@ def update_config(config_file):
                         cfg[k] = v
             else:
                 raise ValueError("{} not exist in config.py".format(k))
+    if list_file:
+        assert len(list_file)%2 == 0, "The length of args.opt should be even"
+        for i in range(len(list_file)//2):
+            k = list_file[i*2]
+            v = list_file[i*2+1]
+            k1, k2 = k.split('.')
+            if k1 in cfg:
+                if k2 in cfg[k1]:
+                    cfg[k1][k2] = v
+                else:
+                    raise ValueError("{} not exist in config.py".format(k))
+            else:
+                raise ValueError("{} not exist in config.py".format(k))
+
 
 
