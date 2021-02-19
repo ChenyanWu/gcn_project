@@ -37,7 +37,7 @@ tester = Tester(args)  # if not args.debug else None
 logger.info("===> Start training...")
 
 for epoch in range(cfg.TRAIN.begin_epoch, cfg.TRAIN.end_epoch + 1):
-    tester.test(epoch, current_model=trainer.model)
+    # tester.test(epoch, current_model=trainer.model)
     trainer.train(epoch)
     trainer.lr_scheduler.step()
 
