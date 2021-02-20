@@ -23,11 +23,32 @@ from vis import vis_3d_pose, vis_2d_pose
 
 class MuPoTS(torch.utils.data.Dataset):
     def __init__(self, data_split, args):
+        dataset_name = 'MuPoTS'
         self.data_split = 'test'
+        self.debug = args.debug
+        self.img_dir = osp.join(cfg.data_dir, dataset_name, 'data', 'MultiPersonTestSet')
+        self.det_path = osp.join(cfg.data_dir, dataset_name, 'bbox_root', 'bbox_mupots_output.json')
+        self.annot_path = osp.join(cfg.data_dir, dataset_name, 'data', 'MuPoTS-3D.json')
+        # TODO no smpl parameters currently
+        # self.smpl_param_path = osp.join(cfg.data_dir, dataset_name, 'data', 'smpl_param.json')
         self.data = self.load_data()
 
         # Use ground truth
         self.use_gt_info = cfg.use_gt_info
+
+        # h36m skeleton
+        self.human36_eval_joint = (1, 2, 3, 4, 5, 6, 8, 10, 11, 12, 13, 14, 15, 16)
+        self.human36_joint_num = 17
+        self.human36_joints_name = (
+            'Pelvis', 'R_Hip', 'R_Knee', 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Torso', 'Neck', 'Nose', 'Head',
+            'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Shoulder', 'R_Elbow', 'R_Wrist')
+        self.human36_skeleton = (
+            (0, 7), (7, 8), (8, 9), (9, 10), (8, 11), (11, 12), (12, 13), (8, 14), (14, 15), (15, 16), (0, 1), (1, 2),
+            (2, 3), (0, 4), (4, 5), (5, 6))
+        self.human36_flip_pairs = ((1, 4), (2, 5), (3, 6), (14, 11), (15, 12), (16, 13))
+        self.human36_root_joint_idx = self.human36_joints_name.index('Pelvis')
+        self.human36_error_distribution = self.get_stat()
+        self.joint_regressor_h36m = self.mesh_model.joint_regressor_h36m
 
         # SMPL joint set
         self.mesh_model = SMPL()
@@ -41,6 +62,11 @@ class MuPoTS(torch.utils.data.Dataset):
             (17, 19), (19, 21), (21, 23), (9, 13), (13, 16), (16, 18), (18, 20), (20, 22), (9, 12), (12, 15))
         self.joint_regressor_smpl = self.mesh_model.layer['neutral'].th_J_regressor
 
+        # change MuPo joints to hm36
+        self. =
+
+        self.input_joint_name = cfg.DATASET.input_joint_set
+        self.joint_num, self.skeleton, self.flip_pairs = self.get_joint_setting(self.input_joint_name)
         self.datalist = self.load_data()
 
     def load_data(self):
@@ -50,50 +76,11 @@ class MuPoTS(torch.utils.data.Dataset):
             assert 0
 
         data = []
-        db = COCO(osp.join(self.data_path, '3DPW_' + self.data_split + '.json'))
+        db = COCO(self.annot_path)
 
-        # the groundtruth bbox
-        # print("Get bounding box and root from groundtruth")
-        # for aid in db.anns.keys():
-        #     ann = db.anns[aid]
-        #     if ann['is_valid'] == 0:
-        #         continue
-        #
-        #     image_id = ann['image_id']
-        #     img = db.loadImgs(image_id)[0]
-        #     img_path = osp.join(self.img_dir, img['file_name'])
-        #     fx, fy, cx, cy = img['intrinsic']
-        #     f = np.array([fx, fy]);
-        #     c = np.array([cx, cy]);
-        #
-        #     joint_cam = np.array(ann['keypoints_cam'])
-        #     root_cam = joint_cam[self.root_idx]
-        #
-        #     joint_img = np.array(ann['keypoints_img'])
-        #     joint_img = np.concatenate([joint_img, joint_cam[:, 2:]], 1)
-        #     joint_img[:, 2] = joint_img[:, 2] - root_cam[2]
-        #     joint_vis = np.ones((self.original_joint_num, 1))
-        #
-        #     bbox = np.array(ann['bbox'])
-        #     img_width, img_height = img['width'], img['height']
-        #     bbox = process_bbox(bbox, img_width, img_height)
-        #     if bbox is None: continue
-        #
-        #     data.append({
-        #         'img_path': img_path,
-        #         'bbox': bbox,
-        #         'joint_img': joint_img,  # [org_img_x, org_img_y, depth - root_depth]
-        #         'joint_cam': joint_cam,  # [X, Y, Z] in camera coordinate
-        #         'joint_vis': joint_vis,
-        #         'root_cam': root_cam,  # [X, Y, Z] in camera coordinate
-        #         'f': f,
-        #         'c': c,
-        #     })
-
-        print("Get bounding box and root from " + self.human_bbox_root_dir)
+        # get ground truth 3D pose and predicted 2D bbox and root
         with open(self.human_bbox_root_dir) as f:
             annot = json.load(f)
-
         for i in range(len(annot)):
             image_id = annot[i]['image_id']
             img = db.loadImgs(image_id)[0]
@@ -105,12 +92,20 @@ class MuPoTS(torch.utils.data.Dataset):
             root_cam = np.array(annot[i]['root_cam']).reshape(3)
             bbox = np.array(annot[i]['bbox']).reshape(4)
 
+            aid = self.find_id_bbox(bbox)
+            ann = db.anns[aid]
+            gt_joint_img =
+            gt_joint_cam =
+            gt_joint_vis =
+
+            pred_joint_cam =
             data.append({
                 'img_path': img_path,
                 'bbox': bbox,
-                'joint_img': np.zeros((self.original_joint_num, 3)),  # dummy
-                'joint_cam': np.zeros((self.original_joint_num, 3)),  # dummy
-                'joint_vis': np.zeros((self.original_joint_num, 1)),  # dummy
+                'gt_joint_img': np.zeros((self.original_joint_num, 3)),  # dummy
+                'gt_joint_cam': np.zeros((self.original_joint_num, 3)),  # dummy
+                'gt_joint_vis': np.zeros((self.original_joint_num, 1)),  # dummy
+                'pred_joint_cam': pred_joint_cam
                 'root_cam': root_cam,  # [X, Y, Z] in camera coordinate
                 'f': f,
                 'c': c,
@@ -118,6 +113,75 @@ class MuPoTS(torch.utils.data.Dataset):
 
         return data
 
+    def __len__(self):
+        return len(self.datalist)
+
+    def __getitem__(self, idx):
+        data = copy.deepcopy(self.datalist[idx])
+        img_path, img_shape, bbox, smpl_param, cam_param = data['img_path'], data['img_shape'], data['bbox'], data[
+            'smpl_param'], data['cam_param']
+
+        flip, rot = augm_params(is_train=(self.data_split == 'train'))
+
+        # regress h36m, coco joints
+        mesh_cam, joint_cam_smpl = self.get_smpl_coord(smpl_param)
+        joint_cam_h36m, joint_img_h36m = self.get_joints_from_mesh(mesh_cam, 'human36', cam_param)
+        joint_cam_coco, joint_img_coco = self.get_joints_from_mesh(mesh_cam, 'coco', cam_param)
+        # vis_3d_save(joint_cam_h36m, self.human36_skeleton, prefix='3d_gt', gt=True)
+        # vis_2d_joints(joint_img_h36m, img_path, self.human36_skeleton, prefix='h36m joint')
+        # vis_2d_joints(joint_img_coco, img_path, self.coco_skeleton, prefix='coco joint')
+
+        # root relative camera coordinate
+        mesh_cam = mesh_cam - joint_cam_h36m[:1]
+        joint_cam_coco = joint_cam_coco - joint_cam_coco[-2:-1]
+        joint_cam_h36m = joint_cam_h36m - joint_cam_h36m[:1]
+
+        if self.input_joint_name == 'coco':
+            joint_img, joint_cam = joint_img_coco, joint_cam_coco
+        elif self.input_joint_name == 'human36':
+            joint_img, joint_cam = joint_img_h36m, joint_cam_h36m
+
+        joint_img =
+        joint_cam =
+
+        # make new bbox
+        init_bbox = get_bbox(joint_img)
+        bbox = process_bbox(init_bbox.copy())
+
+        # aug
+        joint_img, trans = j2d_processing(joint_img.copy(), (cfg.MODEL.input_shape[1], cfg.MODEL.input_shape[0]),
+                                          bbox, rot, flip, self.flip_pairs)
+        joint_cam = j3d_processing(joint_cam, rot, flip, self.flip_pairs)
+
+        # TODO compute the predictive joints
+        joint_cam_pred_relative = joint_cam
+
+        if not cfg.DATASET.use_gt_input:
+            joint_img = self.replace_joint_img(joint_img, bbox, trans)
+
+        #  -> 0~1
+        joint_img = joint_img[:, :2]
+        joint_img /= np.array([[cfg.MODEL.input_shape[1], cfg.MODEL.input_shape[0]]])
+
+        # normalize loc&scale
+        mean, std = np.mean(joint_img, axis=0), np.std(joint_img, axis=0)
+        joint_img = (joint_img.copy() - mean) / std
+
+        # TODO change the input into multi-person
+        # default valid
+        mesh_valid = np.ones((len(mesh_cam), 1), dtype=np.float32)
+        reg_joint_valid = np.ones((len(joint_cam_h36m), 1), dtype=np.float32)
+        lift_joint_valid = np.ones((len(joint_cam), 1), dtype=np.float32)
+        # if fitted mesh is too far from h36m gt, discard it
+        error = self.get_fitting_error(joint_cam_h36m, mesh_cam)
+        if error > self.fitting_thr:
+            mesh_valid[:], reg_joint_valid[:], lift_joint_valid[:] = 0, 0, 0
+
+        inputs = {'pose2d': joint_img, 'lift_pose3d_pred': joint_cam_pred_relative}
+        targets = {'mesh': mesh_cam / 1000, 'lift_pose3d': joint_cam, 'reg_pose3d': joint_cam_h36m}
+        meta = {'mesh_valid': mesh_valid, 'lift_pose3d_valid': lift_joint_valid, 'reg_pose3d_valid': reg_joint_valid}
+
+        return inputs, targets, meta
 
     def evaluate(self, preds, result_dir):
 
