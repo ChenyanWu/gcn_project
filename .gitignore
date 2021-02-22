@@ -90,6 +90,6 @@ manopth/*
 smplpytorch/*
 experiment/*
 external/
-
+process_datasets/*
 draws/
 plot/

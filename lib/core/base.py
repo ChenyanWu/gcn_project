@@ -229,4 +229,49 @@ class Tester:
                 self.val_dataset.evaluate(result)
 
 
+class Tester_mupo:
+    def __init__(self, args, load_dir=''):
+        self.val_loader, self.val_dataset, self.model, _, _, _, _, _ = \
+            prepare_network(args, load_dir=load_dir, is_train=False)
+
+        self.val_loader, self.val_dataset = self.val_loader[0], self.val_dataset[0]
+        self.print_freq = cfg.TRAIN.print_freq
+
+        self.J_regressor = eval(f'torch.Tensor(self.val_dataset.joint_regressor_{cfg.DATASET.target_joint_set}).cuda()')
+
+        if self.model:
+            self.model = self.model.cuda()
+            self.model = nn.DataParallel(self.model)
+
+        # initialize error value
+        self.surface_error = 9999.9
+        self.joint_error = 9999.9
+
+    def test(self, epoch, current_model=None):
+        if current_model:
+            self.model = current_model
+        self.model.eval()
+
+        surface_error = 0.0
+        joint_error = 0.0
+
+        result = []
+        eval_prefix = f'Epoch{epoch} ' if epoch else ''
+        loader = tqdm(self.val_loader)
+        with torch.no_grad():
+            for i, (inputs, targets, meta) in enumerate(loader):
+                input_pose = inputs['pose2d'].cuda()
+                input_3dpose = inputs['lift_pose3d_pred'].cuda()
+                pred_mesh, pred_pose_from2d = self.model(input_pose, input_3dpose)
+                pred_mesh = pred_mesh[:, self.val_dataset.graph_perm_reverse[:self.val_dataset.mesh_model.face.max() + 1], :]
+                pred_mesh = pred_mesh * 1000
+                pred_pose = torch.matmul(self.J_regressor[None, :, :], pred_mesh)
+
+                pred_pose = pred_pose.detach().cpu().numpy()
+                for j in range(len(input_pose)):
+                    result.append(pred_pose[j])
+
+            # Final Evaluation
+            self.val_dataset.evaluate(result, './')
+
 
