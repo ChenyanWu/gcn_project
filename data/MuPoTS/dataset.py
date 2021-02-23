@@ -85,20 +85,20 @@ class MuPoTS(torch.utils.data.Dataset):
         data = []
         for i in range(len(annot)):
             img_path = annot[i]['img_path']
-            f = np.array(annot[i]['f']);
-            c = np.array(annot[i]['c']);
-            root_cam_raw = np.array(annot[i]['root_cam']).reshape(3)
-            bbox_raw = np.array(annot[i]['bbox']).reshape(4)
+            f = np.array(annot[i]['f'], dtype=np.float32);
+            c = np.array(annot[i]['c'], dtype=np.float32);
+            root_cam_raw = np.array(annot[i]['root_cam'], dtype=np.float32).reshape(3)
+            bbox_raw = np.array(annot[i]['bbox'], dtype=np.float32).reshape(4)
 
-            joint_cam = np.array(annot[i]['joint_img'])
+            joint_cam = np.array(annot[i]['joint_img'], dtype=np.float32)
 
-            joint_img = np.array(annot[i]['joint_cam'])
+            joint_img = np.array(annot[i]['joint_cam'], dtype=np.float32)
             joint_img = np.concatenate([joint_img, joint_cam[:, 2:]], 1)
             root_cam = joint_img[14]
 
             bbox = get_bbox(joint_img)
             bbox = process_bbox(bbox.copy())
-            joint_vis = np.ones((joint_img.shape[0], 1))
+            joint_vis = np.ones((joint_img.shape[0], 1), dtype=np.float32)
 
             data.append({
                 'img_path': img_path,
