@@ -9,7 +9,7 @@ from tqdm import tqdm
 import logging
 from collections import Counter
 
-import Human36M.dataset, SURREAL.dataset, COCO.dataset, PW3D.dataset, AMASS.dataset, MuCo.dataset, FreiHAND.dataset
+import Human36M.dataset, SURREAL.dataset, COCO.dataset, PW3D.dataset, AMASS.dataset, MuCo.dataset, FreiHAND.dataset, MuPoTS.dataset
 import models
 from multiple_datasets import MultipleDatasets
 from core.loss import get_loss
