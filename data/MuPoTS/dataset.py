@@ -157,7 +157,7 @@ class MuPoTS(torch.utils.data.Dataset):
     def evaluate(self, preds, result_dir=None):
 
         print('Evaluation start...')
-        gts = self.data
+        gts = self.datalist
         sample_num = len(preds)
 
         pred_2d_save = {}
