@@ -252,9 +252,6 @@ class Tester_mupo:
             self.model = current_model
         self.model.eval()
 
-        surface_error = 0.0
-        joint_error = 0.0
-
         result = []
         eval_prefix = f'Epoch{epoch} ' if epoch else ''
         loader = tqdm(self.val_loader)

@@ -25,6 +25,7 @@ class MuPoTS(torch.utils.data.Dataset):
     def __init__(self, data_split='test', args=None):
         dataset_name = 'MuPoTS'
         self.data_split = 'test'
+        self.num_person = cfg.num_person
         self.pred_pose_mupo_path = osp.join(cfg.data_dir, dataset_name, 'preds_2d_3d_kpt_mupots.json')
 
         # SMPL joint set
@@ -48,7 +49,7 @@ class MuPoTS(torch.utils.data.Dataset):
             (0, 7), (7, 8), (8, 9), (9, 10), (8, 11), (11, 12), (12, 13), (8, 14), (14, 15), (15, 16), (0, 1), (1, 2),
             (2, 3), (0, 4), (4, 5), (5, 6))
         self.human36_flip_pairs = ((1, 4), (2, 5), (3, 6), (14, 11), (15, 12), (16, 13))
-        self.joint_regressor_h36m = self.mesh_model.joint_regressor_h36m
+        self.joint_regressor_human36 = self.mesh_model.joint_regressor_h36m
 
         # change between mupo and hm36
         self.h36m2mupo = [10, 8, 14, 15, 16, 11, 12, 13, 1, 2, 3, 4, 5, 6, 0, 7, 9]
@@ -56,6 +57,13 @@ class MuPoTS(torch.utils.data.Dataset):
         self.mupo2h36m = [self.h36m2mupo.index(i) for i in range(17)]
 
         self.datalist = self.load_data()
+
+        self.joint_num, self.skeleton, self.flip_pairs = self.get_joint_setting(self.input_joint_name)
+
+        # build graph
+        self.graph_Adj, self.graph_L, self.graph_perm, self.graph_perm_reverse = \
+            build_coarse_graphs(self.num_person, self.mesh_model.face, self.joint_num, self.skeleton, self.flip_pairs,
+                                levels=9)
 
     def load_data(self):
         print('Load annotations of MuPoTS ')
