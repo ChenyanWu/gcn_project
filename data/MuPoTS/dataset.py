@@ -26,6 +26,7 @@ class MuPoTS(torch.utils.data.Dataset):
         dataset_name = 'MuPoTS'
         self.data_split = 'test'
         self.num_person = cfg.num_person
+        self.input_joint_name = 'human36'
         self.pred_pose_mupo_path = osp.join(cfg.data_dir, dataset_name, 'preds_2d_3d_kpt_mupots.json')
 
         # SMPL joint set
