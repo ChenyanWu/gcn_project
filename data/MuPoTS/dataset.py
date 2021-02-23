@@ -102,6 +102,7 @@ class MuPoTS(torch.utils.data.Dataset):
 
             data.append({
                 'img_path': img_path,
+                'raw_bbox': bbox_raw,
                 'bbox': bbox,
                 'joint_img': joint_img, # [org_img_x, org_img_y, depth]
                 'joint_cam': joint_cam, # [X, Y, Z] in camera coordinate
@@ -120,7 +121,7 @@ class MuPoTS(torch.utils.data.Dataset):
         rot, flip = 0, 0
         data = copy.deepcopy(self.datalist[idx])
 
-        img_path, bbox = data['img_path'], data['bbox']
+        img_path, bbox, raw_bbox = data['img_path'], data['bbox'], data['raw_bbox']
         joint_img_mupo, joint_cam_mupo, joint_vis = data['joint_img'], data['joint_cam'], data['joint_vis']
 
         # get h36mJ
@@ -130,9 +131,15 @@ class MuPoTS(torch.utils.data.Dataset):
         joint_cam = joint_cam - joint_cam[:1]
 
         # aug
-        joint_img, trans = j2d_processing(joint_img.copy(),
+        try:
+            joint_img, trans = j2d_processing(joint_img.copy(),
                                                (cfg.MODEL.input_shape[1], cfg.MODEL.input_shape[0]),
                                                bbox, rot, flip, None)
+        except:
+            joint_img, trans = j2d_processing(joint_img.copy(),
+                                              (cfg.MODEL.input_shape[1], cfg.MODEL.input_shape[0]),
+                                              raw_bbox, rot, flip, None)
+
         #  -> 0~1
         joint_img = joint_img[:, :2]
         joint_img /= np.array([[cfg.MODEL.input_shape[1], cfg.MODEL.input_shape[0]]])
