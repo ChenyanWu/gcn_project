@@ -37,4 +37,4 @@ AUG:
 TEST:
     batch_size: 128
     shuffle: False
-    weight_path: '/ocean/projects/iri180005p/chenyan/coding/gcn_project/experiment/exp_02-20_10:11/checkpoint'
+    weight_path: '/ocean/projects/iri180005p/chenyan/coding/gcn_project/experiment/exp_02-20_10:11/checkpoint/checkpoint6.pth.tar'
