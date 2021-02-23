@@ -120,7 +120,7 @@ def save_checkpoint(states, epoch, is_best=None):
 
 
 def load_checkpoint(load_dir, epoch=0, pick_best=False):
-    checkpoint_dir = ''#os.path.join(load_dir, 'checkpoint.pth.tar')
+    checkpoint_dir = load_dir#os.path.join(load_dir, 'checkpoint.pth.tar')
     if pick_best:
         checkpoint_dir = os.path.join(load_dir, 'best.pth.tar')
     if not os.path.isfile(checkpoint_dir):
