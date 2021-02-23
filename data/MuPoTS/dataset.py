@@ -65,6 +65,13 @@ class MuPoTS(torch.utils.data.Dataset):
             build_coarse_graphs(self.num_person, self.mesh_model.face, self.joint_num, self.skeleton, self.flip_pairs,
                                 levels=9)
 
+    def get_joint_setting(self, joint_category='human36'):
+        joint_num = eval(f'self.{joint_category}_joint_num')
+        skeleton = eval(f'self.{joint_category}_skeleton')
+        flip_pairs = eval(f'self.{joint_category}_flip_pairs')
+
+        return joint_num, skeleton, flip_pairs
+
     def load_data(self):
         print('Load annotations of MuPoTS ')
         if self.data_split != 'test':
