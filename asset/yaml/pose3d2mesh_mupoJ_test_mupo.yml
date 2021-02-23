@@ -37,3 +37,4 @@ AUG:
 TEST:
     batch_size: 128
     shuffle: False
+    weight_path: './experiment/exp_02-20_10:11/checkpoint'

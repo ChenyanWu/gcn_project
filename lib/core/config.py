@@ -83,7 +83,7 @@ cfg.AUG.rotate_factor = 0  # 30
 cfg.TEST = edict()
 cfg.TEST.batch_size = 64
 cfg.TEST.shuffle = False
-cfg.TEST.weight_path = './experiment/pose2mesh_cocoJ_gt_train_human36_coco'
+cfg.TEST.weight_path = './experiment/exp_02-20_10:11/checkpoint'
 cfg.TEST.vis = False
 
 
